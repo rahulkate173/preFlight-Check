@@ -1,0 +1,27 @@
+name: Preflight
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  release-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: npm test
+      - name: Run vertical preflight agent
+        run: >
+          npx tsx -e "import { runPreflightAudit } from './src/agent/preflightAgent.ts';
+          (async () => {
+            const report = await runPreflightAudit({ projectPath: '.', includeTests: true, testCommand: 'npm test' });
+            console.log(JSON.stringify({ status: report.status, score: report.score, findings: report.findings.length }, null, 2));
+            if (report.status === 'blocked') process.exit(1);
+          })();"
